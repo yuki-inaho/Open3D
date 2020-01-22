@@ -24,42 +24,47 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "Open3D/Container/Blob.h"
-#include "Open3D/Container/Device.h"
-#include "Open3D/Container/MemoryManager.h"
-#include "TestUtility/UnitTest.h"
+/// \file CUDAUtils.h
+/// \brief Common CUDA utilities
+///
+/// CUDAUtils.h may be included from CPU-only code.
+/// Use #ifdef __CUDACC__ to mark conitional compilation
 
-#include "Container/ContainerTest.h"
+#pragma once
 
-using namespace std;
-using namespace open3d;
+#include "Open3D/Utility/Console.h"
 
-class BlobPermuteDevices : public PermuteDevices {};
-INSTANTIATE_TEST_SUITE_P(Blob,
-                         BlobPermuteDevices,
-                         testing::ValuesIn(PermuteDevices::TestCases()));
+#ifdef BUILD_CUDA_MODULE
 
-TEST_P(BlobPermuteDevices, BlobConstructor) {
-    Device device = GetParam();
+#include <cuda.h>
+#include <cuda_runtime.h>
 
-    Blob b(10, Device(device));
-}
+#define OPEN3D_HOST_DEVICE __host__ __device__
+#define OPEN3D_ASSERT_HOST_DEVICE_LAMBDA(type)                            \
+    static_assert(__nv_is_extended_host_device_lambda_closure_type(type), \
+                  #type " must be a __host__ __device__ lambda")
+#define OPEN3D_CUDA_CHECK(err) \
+    open3d::__OPEN3D_CUDA_CHECK(err, __FILE__, __LINE__)
 
-TEST_P(BlobPermuteDevices, BlobConstructorWithExternalMemory) {
-    Device device = GetParam();
+#else  // #ifdef BUILD_CUDA_MODULE
 
-    void* data_ptr = MemoryManager::Malloc(8, device);
-    bool deleter_called = false;
+#define OPEN3D_HOST_DEVICE
+#define OPEN3D_ASSERT_HOST_DEVICE_LAMBDA(type)
+#define OPEN3D_CUDA_CHECK(err)
 
-    auto deleter = [&device, &deleter_called](void* ptr) -> void {
-        MemoryManager::Free(ptr, device);
-        deleter_called = true;
-    };
+#endif  // #ifdef BUILD_CUDA_MODULE
 
-    {
-        Blob b(device, data_ptr, deleter);
-        EXPECT_EQ(b.GetDataPtr(), data_ptr);
-        EXPECT_FALSE(deleter_called);
+namespace open3d {
+
+#ifdef BUILD_CUDA_MODULE
+inline void __OPEN3D_CUDA_CHECK(cudaError_t err,
+                                const char *file,
+                                const int line) {
+    if (err != cudaSuccess) {
+        utility::LogError("{}:{} CUDA runtime error: {}", file, line,
+                          cudaGetErrorString(err));
     }
-    EXPECT_TRUE(deleter_called);
 }
+#endif
+
+}  // namespace open3d

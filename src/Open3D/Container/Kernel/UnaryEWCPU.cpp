@@ -24,42 +24,41 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "Open3D/Container/Blob.h"
-#include "Open3D/Container/Device.h"
+#include "Open3D/Container/Kernel/UnaryEW.h"
+
+#include "Open3D/Container/Dispatch.h"
+#include "Open3D/Container/Dtype.h"
+#include "Open3D/Container/Kernel/CPULauncher.h"
 #include "Open3D/Container/MemoryManager.h"
-#include "TestUtility/UnitTest.h"
+#include "Open3D/Container/SizeVector.h"
+#include "Open3D/Container/Tensor.h"
+#include "Open3D/Utility/Console.h"
 
-#include "Container/ContainerTest.h"
+namespace open3d {
+namespace kernel {
 
-using namespace std;
-using namespace open3d;
-
-class BlobPermuteDevices : public PermuteDevices {};
-INSTANTIATE_TEST_SUITE_P(Blob,
-                         BlobPermuteDevices,
-                         testing::ValuesIn(PermuteDevices::TestCases()));
-
-TEST_P(BlobPermuteDevices, BlobConstructor) {
-    Device device = GetParam();
-
-    Blob b(10, Device(device));
+template <typename scalar_t>
+static void CPUCopyElementKernel(const void* src, void* dst) {
+    *static_cast<scalar_t*>(dst) = *static_cast<const scalar_t*>(src);
 }
 
-TEST_P(BlobPermuteDevices, BlobConstructorWithExternalMemory) {
-    Device device = GetParam();
-
-    void* data_ptr = MemoryManager::Malloc(8, device);
-    bool deleter_called = false;
-
-    auto deleter = [&device, &deleter_called](void* ptr) -> void {
-        MemoryManager::Free(ptr, device);
-        deleter_called = true;
-    };
-
-    {
-        Blob b(device, data_ptr, deleter);
-        EXPECT_EQ(b.GetDataPtr(), data_ptr);
-        EXPECT_FALSE(deleter_called);
+void CopyCPU(const Tensor& src, Tensor& dst) {
+    // src and dst have been checked to have the same shape, dtype, device
+    SizeVector shape = src.GetShape();
+    Dtype dtype = src.GetDtype();
+    if (src.IsContiguous() && dst.IsContiguous() &&
+        src.GetShape() == dst.GetShape()) {
+        MemoryManager::Memcpy(dst.GetDataPtr(), dst.GetDevice(),
+                              src.GetDataPtr(), src.GetDevice(),
+                              DtypeUtil::ByteSize(dtype) * shape.NumElements());
+    } else {
+        Indexer indexer({src}, dst);
+        DISPATCH_DTYPE_TO_TEMPLATE(dtype, [&]() {
+            CPULauncher::LaunchUnaryEWKernel<scalar_t>(
+                    indexer, CPUCopyElementKernel<scalar_t>);
+        });
     }
-    EXPECT_TRUE(deleter_called);
 }
+
+}  // namespace kernel
+}  // namespace open3d

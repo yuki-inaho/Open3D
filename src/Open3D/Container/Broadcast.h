@@ -24,42 +24,35 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "Open3D/Container/Blob.h"
-#include "Open3D/Container/Device.h"
-#include "Open3D/Container/MemoryManager.h"
-#include "TestUtility/UnitTest.h"
+#pragma once
 
-#include "Container/ContainerTest.h"
+#include "Open3D/Container/Dispatch.h"
+#include "Open3D/Container/SizeVector.h"
+#include "Open3D/Container/Tensor.h"
+#include "Open3D/Utility/Console.h"
 
-using namespace std;
-using namespace open3d;
+namespace open3d {
 
-class BlobPermuteDevices : public PermuteDevices {};
-INSTANTIATE_TEST_SUITE_P(Blob,
-                         BlobPermuteDevices,
-                         testing::ValuesIn(PermuteDevices::TestCases()));
+/// \brief Returns true if two shapes are compatible for broadcasting.
+/// \param l_shape Shape of the left-hand-side Tensor.
+/// \param r_shape Shape of the left-hand-side Tensor.
+/// \return Returns true if \p l_shape and \p r_shape are compatible for
+/// broadcasting.
+bool IsCompatibleBroadcastShape(const SizeVector& l_shape,
+                                const SizeVector& r_shape);
 
-TEST_P(BlobPermuteDevices, BlobConstructor) {
-    Device device = GetParam();
+/// \brief Returns the broadcasted shape of two shapes.
+/// \param l_shape Shape of the left-hand-side Tensor.
+/// \param r_shape Shape of the left-hand-side Tensor.
+/// \return The broadcasted shape.
+SizeVector BroadcastedShape(const SizeVector& l_shape,
+                            const SizeVector& r_shape);
 
-    Blob b(10, Device(device));
-}
+/// \brief Returns true if \p src_shape can be brocasted to \p dst_shape.
+/// \param src_shape Source tensor shape.
+/// \param dst_shape Destination tensor shape.
+/// \return Returns true if \p src_shape can be brocasted to \p dst_shape.
+bool CanBeBrocastedToShape(const SizeVector& src_shape,
+                           const SizeVector& dst_shape);
 
-TEST_P(BlobPermuteDevices, BlobConstructorWithExternalMemory) {
-    Device device = GetParam();
-
-    void* data_ptr = MemoryManager::Malloc(8, device);
-    bool deleter_called = false;
-
-    auto deleter = [&device, &deleter_called](void* ptr) -> void {
-        MemoryManager::Free(ptr, device);
-        deleter_called = true;
-    };
-
-    {
-        Blob b(device, data_ptr, deleter);
-        EXPECT_EQ(b.GetDataPtr(), data_ptr);
-        EXPECT_FALSE(deleter_called);
-    }
-    EXPECT_TRUE(deleter_called);
-}
+}  // namespace open3d

@@ -24,42 +24,7 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "Open3D/Container/Blob.h"
-#include "Open3D/Container/Device.h"
-#include "Open3D/Container/MemoryManager.h"
-#include "TestUtility/UnitTest.h"
+#pragma once
 
-#include "Container/ContainerTest.h"
-
-using namespace std;
-using namespace open3d;
-
-class BlobPermuteDevices : public PermuteDevices {};
-INSTANTIATE_TEST_SUITE_P(Blob,
-                         BlobPermuteDevices,
-                         testing::ValuesIn(PermuteDevices::TestCases()));
-
-TEST_P(BlobPermuteDevices, BlobConstructor) {
-    Device device = GetParam();
-
-    Blob b(10, Device(device));
-}
-
-TEST_P(BlobPermuteDevices, BlobConstructorWithExternalMemory) {
-    Device device = GetParam();
-
-    void* data_ptr = MemoryManager::Malloc(8, device);
-    bool deleter_called = false;
-
-    auto deleter = [&device, &deleter_called](void* ptr) -> void {
-        MemoryManager::Free(ptr, device);
-        deleter_called = true;
-    };
-
-    {
-        Blob b(device, data_ptr, deleter);
-        EXPECT_EQ(b.GetDataPtr(), data_ptr);
-        EXPECT_FALSE(deleter_called);
-    }
-    EXPECT_TRUE(deleter_called);
-}
+#include "Open3D/Container/Kernel/IndexGetSet.h"
+#include "Open3D/Container/Kernel/UnaryEW.h"

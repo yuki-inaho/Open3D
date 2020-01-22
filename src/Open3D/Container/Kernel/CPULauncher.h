@@ -24,42 +24,46 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "Open3D/Container/Blob.h"
-#include "Open3D/Container/Device.h"
-#include "Open3D/Container/MemoryManager.h"
-#include "TestUtility/UnitTest.h"
+#pragma once
 
-#include "Container/ContainerTest.h"
+#include <cassert>
+#include <vector>
 
-using namespace std;
-using namespace open3d;
+#include "Open3D/Container/AdvancedIndexing.h"
+#include "Open3D/Container/Indexer.h"
+#include "Open3D/Container/Tensor.h"
 
-class BlobPermuteDevices : public PermuteDevices {};
-INSTANTIATE_TEST_SUITE_P(Blob,
-                         BlobPermuteDevices,
-                         testing::ValuesIn(PermuteDevices::TestCases()));
+namespace open3d {
+namespace kernel {
 
-TEST_P(BlobPermuteDevices, BlobConstructor) {
-    Device device = GetParam();
-
-    Blob b(10, Device(device));
-}
-
-TEST_P(BlobPermuteDevices, BlobConstructorWithExternalMemory) {
-    Device device = GetParam();
-
-    void* data_ptr = MemoryManager::Malloc(8, device);
-    bool deleter_called = false;
-
-    auto deleter = [&device, &deleter_called](void* ptr) -> void {
-        MemoryManager::Free(ptr, device);
-        deleter_called = true;
-    };
-
-    {
-        Blob b(device, data_ptr, deleter);
-        EXPECT_EQ(b.GetDataPtr(), data_ptr);
-        EXPECT_FALSE(deleter_called);
+class CPULauncher {
+public:
+    template <typename scalar_t, typename func_t>
+    static void LaunchUnaryEWKernel(const Indexer& indexer,
+                                    func_t element_kernel) {
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
+        for (int64_t workload_idx = 0; workload_idx < indexer.NumWorkloads();
+             ++workload_idx) {
+            element_kernel(indexer.GetInputPtr(0, workload_idx),
+                           indexer.GetOutputPtr(workload_idx));
+        }
     }
-    EXPECT_TRUE(deleter_called);
-}
+
+    template <typename scalar_t, typename func_t>
+    static void LaunchAdvancedIndexerKernel(const AdvancedIndexer& indexer,
+                                            func_t element_kernel) {
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
+        for (int64_t workload_idx = 0; workload_idx < indexer.NumWorkloads();
+             ++workload_idx) {
+            element_kernel(indexer.GetInputPtr(workload_idx),
+                           indexer.GetOutputPtr(workload_idx));
+        }
+    }
+};
+
+}  // namespace kernel
+}  // namespace open3d
