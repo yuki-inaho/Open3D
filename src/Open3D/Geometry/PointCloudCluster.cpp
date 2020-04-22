@@ -32,9 +32,16 @@
 #include "Open3D/Geometry/KDTreeFlann.h"
 #include "Open3D/Utility/Console.h"
 
+#include <chrono>
+
 #ifdef _OPENMP
 #include <omp.h>
 #endif
+
+using namespace std::chrono;
+inline double get_time_mill_sec(void){
+    return static_cast<double>(duration_cast<nanoseconds>(steady_clock::now().time_since_epoch()).count())/1000000;
+}
 
 namespace open3d {
 namespace geometry {
@@ -42,13 +49,16 @@ namespace geometry {
 std::vector<int> PointCloud::ClusterDBSCAN(double eps,
                                            size_t min_points,
                                            bool print_progress) const {
+    double start_time, end_time, elapsed;
     KDTreeFlann kdtree(*this);
 
     // precompute all neighbours
     utility::LogDebug("Precompute Neighbours");
+    start_time = get_time_sec();        
     utility::ConsoleProgressBar progress_bar(
             points_.size(), "Precompute Neighbours", print_progress);
     std::vector<std::vector<int>> nbs(points_.size());
+    
 #ifdef _OPENMP
 #pragma omp parallel for schedule(static)
 #endif
@@ -61,10 +71,15 @@ std::vector<int> PointCloud::ClusterDBSCAN(double eps,
 #endif
         { ++progress_bar; }
     }
+    end_time = get_time_sec();
+    elapsed = end_time - start;
+
+    utility::LogInfo("Elapsed Time(Precompute Neighbours :{:.2f}[msec]", (float)elapsed);
     utility::LogDebug("Done Precompute Neighbours");
 
     // set all labels to undefined (-2)
     utility::LogDebug("Compute Clusters");
+    start_time = get_time_sec();        
     progress_bar.reset(points_.size(), "Clustering", print_progress);
     std::vector<int> labels(points_.size(), -2);
     int cluster_label = 0;
@@ -111,7 +126,10 @@ std::vector<int> PointCloud::ClusterDBSCAN(double eps,
 
         cluster_label++;
     }
+    end_time = get_time_sec();
+    elapsed = end_time - start;
 
+    utility::LogInfo("Elapsed Time(Compute Clusters :{:.2f}[msec]", (float)elapsed);
     utility::LogDebug("Done Compute Clusters: {:d}", cluster_label);
     return labels;
 }
