@@ -54,7 +54,7 @@ std::vector<int> PointCloud::ClusterDBSCAN(double eps,
 
     // precompute all neighbours
     utility::LogDebug("Precompute Neighbours");
-    start_time = get_time_sec();        
+    start_time = get_time_mill_sec();        
     utility::ConsoleProgressBar progress_bar(
             points_.size(), "Precompute Neighbours", print_progress);
     std::vector<std::vector<int>> nbs(points_.size());
@@ -71,7 +71,7 @@ std::vector<int> PointCloud::ClusterDBSCAN(double eps,
 #endif
         { ++progress_bar; }
     }
-    end_time = get_time_sec();
+    end_time = get_time_mill_sec();
     elapsed = end_time - start;
 
     utility::LogInfo("Elapsed Time(Precompute Neighbours :{:.2f}[msec]", (float)elapsed);
@@ -79,7 +79,7 @@ std::vector<int> PointCloud::ClusterDBSCAN(double eps,
 
     // set all labels to undefined (-2)
     utility::LogDebug("Compute Clusters");
-    start_time = get_time_sec();        
+    start_time = get_time_mill_sec();        
     progress_bar.reset(points_.size(), "Clustering", print_progress);
     std::vector<int> labels(points_.size(), -2);
     int cluster_label = 0;
@@ -126,7 +126,7 @@ std::vector<int> PointCloud::ClusterDBSCAN(double eps,
 
         cluster_label++;
     }
-    end_time = get_time_sec();
+    end_time = get_time_mill_sec();
     elapsed = end_time - start;
 
     utility::LogInfo("Elapsed Time(Compute Clusters :{:.2f}[msec]", (float)elapsed);
